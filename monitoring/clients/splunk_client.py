@@ -15,7 +15,7 @@ class SplunkClient(MonitoringClient):
             "Splunk provider is not implemented."
         )
 
-    def get_error_logs(self):
+    def get_error_logs(self, since_minutes: int = 60):
 
         raise NotImplementedError(
             "Splunk provider is not implemented."

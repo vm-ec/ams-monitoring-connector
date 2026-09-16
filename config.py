@@ -22,7 +22,6 @@ from dotenv import load_dotenv
 # Load variables from .env file into the environment (no-op if already set)
 load_dotenv()
 
-
 class Config:
 
     # =====================================================
@@ -211,6 +210,18 @@ class Config:
     # Recipient email address for incident notifications (e.g. dev team distribution list)
     EMAIL_TO = os.getenv(
         "EMAIL_TO"
+    )
+
+    # =====================================================
+    # Scheduler
+    # =====================================================
+
+    # How often (in minutes) the scheduler polls for new error logs and creates incidents
+    SCHEDULER_INTERVAL_MINUTES = int(
+        os.getenv(
+            "SCHEDULER_INTERVAL_MINUTES",
+            "5"
+        )
     )
 
     # =====================================================

@@ -57,9 +57,9 @@ class MonitoringConnectorService:
         return result
 
     # Delegates to MonitoringService — only ERROR and CRITICAL logs are returned
-    def get_error_logs(self):
+    def get_error_logs(self, since_minutes: int = 60):
         logger.info("[STEP 1] Fetching error logs from monitoring service")
-        result = self.monitoring_service.get_error_logs()
+        result = self.monitoring_service.get_error_logs(since_minutes=since_minutes)
         logger.info(f"[STEP 2] Retrieved {len(result)} error log(s)")
         return result
 
@@ -91,7 +91,6 @@ class MonitoringConnectorService:
         """Fetches all logs and error logs, then returns a health summary of the system."""
         logger.info("[STEP 1] Building observability summary")
 
-        # Fetch all logs and error logs in parallel context
         all_logs = self.monitoring_service.get_all_logs()
         error_logs = self.monitoring_service.get_error_logs()
 
@@ -134,13 +133,14 @@ class MonitoringConnectorService:
 
     def process_incidents(
         self,
-        request: ProcessIncidentRequest
+        request: ProcessIncidentRequest,
+        since_minutes: int = 60
     ):
         logger.info("[STEP 1] Starting incident processing pipeline")
 
-        # Fetch all error/critical logs from the monitoring provider
+        # Fetch all error/critical logs from the monitoring provider within the time window
         logger.info("[STEP 2] Fetching error logs from monitoring provider")
-        logs = self.monitoring_service.get_error_logs()
+        logs = self.monitoring_service.get_error_logs(since_minutes=since_minutes)
         logger.info(f"[STEP 3] Found {len(logs)} error log(s) to process")
 
         # Counters to track pipeline results

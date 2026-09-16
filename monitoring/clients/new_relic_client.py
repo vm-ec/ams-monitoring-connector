@@ -114,14 +114,14 @@ class NewRelicClient(MonitoringClient):
         """
         return self.execute_query(query)
 
-    # Fetches only ERROR and CRITICAL logs from the last 1 hour, up to 100 records
-    def get_error_logs(self):
-        logger.info("[STEP 1] Executing get_error_logs query")
-        query = """
+    # Fetches only ERROR and CRITICAL logs since the given time window, up to 100 records
+    def get_error_logs(self, since_minutes: int = 60):
+        logger.info(f"[STEP 1] Executing get_error_logs query | Since: {since_minutes} minute(s) ago")
+        query = f"""
         FROM Log
         SELECT *
         WHERE level IN ('ERROR', 'CRITICAL')
-        SINCE 1 hour ago
+        SINCE {since_minutes} minutes ago
         LIMIT 100
         """
         return self.execute_query(query)
@@ -148,3 +148,4 @@ class NewRelicClient(MonitoringClient):
     ):
         logger.info("[STEP 1] Executing custom NRQL query")
         return self.execute_query(query)
+#adios

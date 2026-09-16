@@ -30,9 +30,9 @@ class MonitoringService:
         return result
 
     # Delegates to the active client to fetch only ERROR/CRITICAL logs
-    def get_error_logs(self):
-        logger.info("[STEP 1] Querying error logs from monitoring provider")
-        result = self.client.get_error_logs()
+    def get_error_logs(self, since_minutes: int = 60):
+        logger.info(f"[STEP 1] Querying error logs from monitoring provider | Since: {since_minutes} minute(s) ago")
+        result = self.client.get_error_logs(since_minutes=since_minutes)
         logger.info(f"[STEP 2] Error logs query complete - {len(result)} record(s) returned")
         return result
 

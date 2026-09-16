@@ -19,7 +19,7 @@ class MonitoringClient(ABC):
         pass
 
     @abstractmethod
-    def get_error_logs(self):
+    def get_error_logs(self, since_minutes: int = 60):
         """
         Fetch only ERROR logs.
         """

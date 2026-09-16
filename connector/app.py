@@ -7,9 +7,13 @@ Initializes the app, registers routes, and logs startup configuration.
 import uvicorn
 
 from fastapi import FastAPI
+from fastapi.requests import Request
+from fastapi.templating import Jinja2Templates
 
 from config import Config
 from connector.routes import router
+from connector.scheduler import start_scheduler
+from connector.store import pipeline_runs
 from shared.logger import get_logger
 
 # Create a logger scoped to this module
@@ -22,8 +26,14 @@ app = FastAPI(
     description="Generic Monitoring Connector"
 )
 
+# Jinja2 templates directory
+templates = Jinja2Templates(directory="templates")
+
 # Register all /api routes defined in connector/routes.py
 app.include_router(router)
+
+# Start the background scheduler — auto-polls for errors and creates incidents
+start_scheduler()
 
 # Log startup configuration so it is visible in Render logs on boot
 logger.info("[STEP 1] AMS Monitoring Connector starting up")
@@ -36,7 +46,6 @@ logger.info(f"[STEP 5] Listening on        : {Config.CONNECTOR_HOST}:{Config.CON
 # Health check endpoint — returns app metadata and current status
 @app.get("/")
 def home():
-
     return {
         "application": Config.APPLICATION_NAME,
         "version": Config.APPLICATION_VERSION,
@@ -45,6 +54,24 @@ def home():
         "incidentProvider": Config.INCIDENT_PROVIDER,
         "status": "Running"
     }
+
+
+# Dashboard — visual UI showing scheduler runs, decisions, and incidents
+@app.get("/dashboard")
+def dashboard(request: Request):
+    total_created = sum(r["incidentsCreated"] for r in pipeline_runs)
+    total_skipped = sum(r["skipped"] for r in pipeline_runs)
+    total_errors  = sum(r["new_errors_found"] for r in pipeline_runs)
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "runs": pipeline_runs,
+        "total_runs": len(pipeline_runs),
+        "total_errors": total_errors,
+        "total_created": total_created,
+        "total_skipped": total_skipped,
+        "monitoring_provider": Config.MONITORING_PROVIDER,
+        "incident_provider": Config.INCIDENT_PROVIDER
+    })
 
 
 # Entry point when running the file directly (python connector/app.py)
