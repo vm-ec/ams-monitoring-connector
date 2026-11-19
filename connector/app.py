@@ -62,16 +62,19 @@ def dashboard(request: Request):
     total_created = sum(r["incidentsCreated"] for r in pipeline_runs)
     total_skipped = sum(r["skipped"] for r in pipeline_runs)
     total_errors  = sum(r["new_errors_found"] for r in pipeline_runs)
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "runs": pipeline_runs,
-        "total_runs": len(pipeline_runs),
-        "total_errors": total_errors,
-        "total_created": total_created,
-        "total_skipped": total_skipped,
-        "monitoring_provider": Config.MONITORING_PROVIDER,
-        "incident_provider": Config.INCIDENT_PROVIDER
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={
+            "runs": pipeline_runs,
+            "total_runs": len(pipeline_runs),
+            "total_errors": total_errors,
+            "total_created": total_created,
+            "total_skipped": total_skipped,
+            "monitoring_provider": Config.MONITORING_PROVIDER,
+            "incident_provider": Config.INCIDENT_PROVIDER
+        }
+    )
 
 
 # Entry point when running the file directly (python connector/app.py)
