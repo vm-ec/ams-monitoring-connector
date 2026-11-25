@@ -11,12 +11,14 @@ Responsibilities:
         3. Submits each incident to the incident provider via IncidentService
         4. Returns a summary of processed, created, and failed incidents
 """
+from connector.alert_store import AlertStore
 from incident.models.incident import Incident
 from incident.services.incident_service import (
     IncidentService
 )
 
 from connector.models import (
+    NewRelicAlert,
     ProcessIncidentRequest
 )
 
@@ -44,6 +46,7 @@ class MonitoringConnectorService:
         self.incident_service = (
             IncidentService()
         )
+        self.alert_store = AlertStore(Config.ALERT_STORE_PATH)
 
     # =====================================================
     # Logs
@@ -309,3 +312,79 @@ class MonitoringConnectorService:
             # Explainability — full decision log for every processed error log
             "decisions": decisions
         }
+
+    # =====================================================
+    # New Relic performance alerts
+    # =====================================================
+
+    def process_newrelic_alert(self, alert: NewRelicAlert) -> dict:
+        """Create one ServiceNow simulation incident for a unique New Relic alert."""
+        if alert.alert_state.upper() != "OPEN":
+            return {
+                "status": "ignored",
+                "reason": f"Alert state '{alert.alert_state}' does not create a new incident.",
+                "alert_id": alert.alert_id,
+            }
+
+        claimed = self.alert_store.claim_open_alert(
+            alert.alert_id,
+            alert.alert_state,
+            alert.service,
+            alert.environment,
+        )
+        if not claimed:
+            existing = self.alert_store.get(alert.alert_id) or {}
+            return {
+                "status": "duplicate",
+                "alert_id": alert.alert_id,
+                "incident_number": existing.get("incident_number"),
+                "incident_status": existing.get("status"),
+            }
+
+        priority = "1" if alert.severity.upper() == "CRITICAL" else "2"
+        target = alert.ec2_instance_id or alert.host_name or "Not supplied"
+        description = "\n".join([
+            "[PERFORMANCE-SIMULATION]",
+            "",
+            f"New Relic alert ID: {alert.alert_id}",
+            f"Service: {alert.service}",
+            f"Application: {alert.application or alert.service}",
+            f"Environment: {alert.environment}",
+            f"Severity: {alert.severity}",
+            f"Target: {target}",
+            f"CPU: {alert.cpu_percent if alert.cpu_percent is not None else 'Not supplied'}%",
+            f"Memory: {alert.memory_percent if alert.memory_percent is not None else 'Not supplied'}%",
+            f"p95 latency: {alert.p95_latency_seconds if alert.p95_latency_seconds is not None else 'Not supplied'} seconds",
+            f"5xx error rate: {alert.error_rate_percent if alert.error_rate_percent is not None else 'Not supplied'}%",
+            f"New Relic alert: {alert.alert_url or 'Not supplied'}",
+            f"Started: {alert.started_at or 'Not supplied'}",
+        ])
+        incident = Incident(
+            short_description=f"[PERFORMANCE-SIMULATION] {alert.service}: {alert.severity} performance alert",
+            description=description,
+            category="Infrastructure",
+            subcategory="Performance",
+            business_service=alert.service,
+            cmdb_ci=target,
+            impact=priority,
+            urgency=priority,
+            contact_type="api",
+        )
+
+        try:
+            response = self.incident_service.create_incident(incident)
+            result = response.get("result", response)
+            incident_number = str(result.get("number") or result.get("sys_id") or "")
+            if not incident_number:
+                raise ValueError("Incident provider response did not include an incident number or sys_id.")
+            self.alert_store.mark_created(alert.alert_id, incident_number)
+            logger.info(f"[NEW_RELIC_ALERT] ServiceNow incident created | alert={alert.alert_id} incident={incident_number}")
+            return {
+                "status": "created",
+                "alert_id": alert.alert_id,
+                "incident_number": incident_number,
+            }
+        except Exception as exc:
+            self.alert_store.mark_failed(alert.alert_id, str(exc))
+            logger.error(f"[NEW_RELIC_ALERT] Incident creation failed | alert={alert.alert_id} error={exc}")
+            raise

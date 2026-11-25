@@ -33,7 +33,12 @@ templates = Jinja2Templates(directory="templates")
 app.include_router(router)
 
 # Start the background scheduler — auto-polls for errors and creates incidents
-start_scheduler()
+# Polling is optional: direct New Relic webhook tests must not process historic logs.
+if Config.SCHEDULER_ENABLED:
+    start_scheduler()
+    logger.info("[SCHEDULER] Enabled")
+else:
+    logger.info("[SCHEDULER] Disabled by SCHEDULER_ENABLED=false")
 
 # Log startup configuration so it is visible in Render logs on boot
 logger.info("[STEP 1] AMS Monitoring Connector starting up")

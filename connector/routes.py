@@ -10,11 +10,16 @@ Endpoints:
     POST /api/logs/query                  - Execute a custom provider-specific query
     GET  /api/observability/summary       - Observability summary of the system
     POST /api/process-incidents           - Fetch error logs and create incidents in the incident platform
+    POST /api/newrelic-alert              - Receive a New Relic performance alert
 """
-from fastapi import APIRouter
+import secrets
 
+from fastapi import APIRouter, Header, HTTPException, status
+
+from config import Config
 from connector.models import (
     CustomQueryRequest,
+    NewRelicAlert,
     ProcessIncidentRequest
 )
 
@@ -97,7 +102,7 @@ def get_observability_summary():
 # Incident Processing
 # =====================================================
 
-# Triggers the full pipeline: fetch error logs → map to incidents → create in incident platform
+# Triggers the full pipeline: fetch error logs → map to incidents → create incidents in the incident platform
 @router.post("/process-incidents")
 def process_incidents(
     request: ProcessIncidentRequest
@@ -106,3 +111,35 @@ def process_incidents(
     result = connector_service.process_incidents(request)
     logger.info(f"[RESPONSE] POST /api/process-incidents - Processed: {result['processedLogs']} | Created: {result['incidentsCreated']} | Failed: {result['failed']}")
     return result
+
+
+# =====================================================
+# New Relic performance alerts
+# =====================================================
+
+@router.post("/newrelic-alert", status_code=status.HTTP_202_ACCEPTED)
+def receive_newrelic_alert(
+    alert: NewRelicAlert,
+    x_connector_token: str | None = Header(default=None),
+):
+    """Accept a New Relic performance alert during the simulation integration phase."""
+    expected_token = Config.NEW_RELIC_WEBHOOK_TOKEN
+    if not expected_token:
+        logger.error("[NEW_RELIC_ALERT] Rejected because NEW_RELIC_WEBHOOK_TOKEN is not configured")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="New Relic webhook is not configured.")
+    if not x_connector_token or not secrets.compare_digest(x_connector_token, expected_token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid connector token.")
+
+    if Config.PERFORMANCE_SIMULATION_ONLY and alert.environment.lower() != Config.PERFORMANCE_SIMULATION_ENVIRONMENT.lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Only '{Config.PERFORMANCE_SIMULATION_ENVIRONMENT}' alerts are accepted while simulation mode is enabled.",
+        )
+
+    logger.info(
+        "[NEW_RELIC_ALERT] Accepted | "
+        f"id={alert.alert_id} state={alert.alert_state} service={alert.service} "
+        f"environment={alert.environment} severity={alert.severity} "
+        f"cpu={alert.cpu_percent} latency={alert.p95_latency_seconds} error_rate={alert.error_rate_percent}"
+    )
+    return connector_service.process_newrelic_alert(alert)

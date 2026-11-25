@@ -216,6 +216,8 @@ class Config:
     # Scheduler
     # =====================================================
 
+    # Set false during direct-webhook tests to prevent polling historic New Relic logs.
+    SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
     # How often (in minutes) the scheduler polls for new error logs and creates incidents
     SCHEDULER_INTERVAL_MINUTES = int(
         os.getenv(
@@ -235,3 +237,20 @@ class Config:
         "AGENT_URL",
         "http://localhost:8001"
     )
+
+    # =====================================================
+    # New Relic alert webhook
+    # =====================================================
+
+    # Shared secret expected in the X-Connector-Token header from New Relic.
+    NEW_RELIC_WEBHOOK_TOKEN = os.getenv("NEW_RELIC_WEBHOOK_TOKEN", "")
+
+    # Keep the first integration restricted to the dedicated simulation environment.
+    PERFORMANCE_SIMULATION_ONLY = os.getenv("PERFORMANCE_SIMULATION_ONLY", "true").lower() == "true"
+    PERFORMANCE_SIMULATION_ENVIRONMENT = os.getenv(
+        "PERFORMANCE_SIMULATION_ENVIRONMENT",
+        "performance-simulation",
+    )
+
+    # SQLite is sufficient for the single-instance simulation. Use shared storage before scaling out.
+    ALERT_STORE_PATH = os.getenv("ALERT_STORE_PATH", "data/newrelic_alerts.sqlite3")

@@ -31,3 +31,6 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local alert state
+data/newrelic_alerts.sqlite3*
